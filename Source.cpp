@@ -1,7 +1,7 @@
 #include "information.h"
 
 int main() {
-	Nocursortype();
+	FixConsole();
 	Run_maze();
 	return 0;
 }

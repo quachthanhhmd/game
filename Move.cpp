@@ -1,9 +1,12 @@
-#include <conio.h>
+﻿#include <conio.h>
 #include <iostream>
 
+#include <iomanip>
 
-#include "console.h"
 #include "khoitao.h"
+#include "Setting.h"
+#include "KeyBoard.h"
+#include "console.h"
 #include "Move.h"
 #include "PrintScreen.h"
 
@@ -11,243 +14,367 @@
 using namespace std;
 
 
-static void In_level(int, char[][25] );
-static bool Ket_thuc(int, int, int, char [][25]);
-static void makeSpace(char[][25], int , int , int, int );
-static void copy_lv(int, char[][25]);
-static char Lay_phim();
-static int Bang_control();
-static int Lay_toa_do(char[][25], int , int&);
-static bool Dung_tuong(int, int, int, char[][25]);
-static void update(char[][25], int , int , int , bool );
-static bool Is_Tele(char[][25], int , int, int, bool&, int, int);
-//static bool Nhat_Bua(int, int, int, int, int);	
+static bool Ket_thuc(char[][25], TOADO, int , int );
+static void makeSpace(char lvl[][25], int, TOADO, int);
+static void copy_lv(char[][25], int);
+static TOADO Lay_toa_do(char[][25], int);
+static bool Dung_tuong(char[][25], TOADO, int, int );
+static void update(char[][25], TOADO, int ,int );
+static bool Is_Tele(char[][25], int , TOADO, bool&, int, int);
 
-bool Tele1(char[][25], int , int , int );
-bool Tele2(char[][25], int , int , int );
-bool Tele3(char[][25], int, int, int);
+static bool Collect_Hammer(char[][25], TOADO, int, int);
+static bool PoundingWalls(char[][25], int , TOADO , int , int );
 
+bool Tele1(char[][25], int, TOADO);
+bool Tele2(char[][25], int , TOADO);
+bool Tele3(char[][25], int, TOADO);
 
 
-static void In_level(int lv_game, char lvl[][25] ) {
-	int size = 0;
-	if (lv_game == 3) size = 25;
-	else size = 20;
+thread pthread;
+
+
+//Khai báo mảng mê cung 
+char lvl[25][25];
+
+//Đếm Ngược thời gian và in ra màn hình
+void In_Time() {
 	
-	for (int i = 0; i != size; ++i) {
-		gotoXY(40, 8 + i);
-		for (int j = 0; j != size; ++j) {
-			if (lvl[i][j] == '#' || lvl[i][j] == '=' || lvl[i][j] == '|')
-				cout << char(219); // buoc tuong
-			else cout << lvl[i][j];
-			}
+	bool flag = 1; //đánh dấu là đã cập nhật thời gian ở thời điểm đó rồi
+	int total = m * 60 + s;
+	while (total + Add_s)
+	{
+		
+		gotoXY(40, 7);
+		set_clock();
+		cout << setw(2) << m << ":"
+			<< setw(2) << s ;
+		Sleep(1000);
+
+		if (s + Add_s > 60) {
+			
+				m += 1;
+				s = (total + Add_s) % 60;
+				flag = 0;
+			
+		}
+		if (m == 0 && s == 1)
+		{
+			clrscr();
+			Lost = 1;
+			TerminateThread((void*)pthread.native_handle(), 0);
+			return;	
+		}
+		else if (m >= 1 && s == 0)
+		{
+			m--;
+			s += 60;
+		}
+
+		s = (total + Add_s - 1) % 60 ;
+
+		if (Add_s != 0) Add_s--;
+		else 
+			total--;
+		
 	}
-
-	cout << endl;
-	
-
 }
 
 
 
+
+// Nhặt được thời gian
+bool Collect_time(char lvl[][25], TOADO vitri, int move_x, int move_y) {
+	if (lvl[vitri.x + move_x][vitri.y + move_y] == 's')
+		return 1;
+	return 0;
+
+}
+
+
+//Quái di chuyên trên mê cung
+void Quai_Di_Chuyen(char lvl[][25], int lv_game, int toado, int batdau, int ketthuc) {
+	int flag = 0; // danh dau la vua moi va cham
+	Hp(Mau);
+Begin:
+	for (int i = batdau + 1; i <= ketthuc; i++) {
+
+		if (lvl[toado][i] == '@' ||lvl[toado][i - 1] == '@') {
+			if (!flag) Hp(--Mau);
+			makeSpace(lvl, lv_game, { toado, i - 2 }, 0);
+			flag = 1;
+		}
+		else {
+			gotoXY(39 + i, 8 + toado);
+			set_monster();
+			cout << '=' << Quai;
+
+
+			flag = 0;
+			if (lvl[toado][i - 2] != '@')
+				makeSpace(lvl, lv_game,{ toado, i - 2}, 0);
+	
+		}
+
+		if (Mau == 0) {
+			clrscr();
+			Lost = 1;
+
+			TerminateThread((void*)pthread.native_handle(), 0);
+
+			return;
+		}
+		Sleep(250);
+	}
+
+	flag = 0;
+	for (int i = ketthuc - 1; i >= batdau; i--) {
+
+		if (lvl[toado][i] == '@' || lvl[toado][i + 1] == '@') {
+			if (!flag) Hp(--Mau);
+			makeSpace(lvl, lv_game, {toado, i + 2}, 0);
+			flag = 1;
+		}
+		else {
+			gotoXY(40 + i, 8 + toado);
+			set_monster();
+			cout << Quai << '=';
+
+			flag = 0;
+
+			if (lvl[toado][i + 2] != '@')
+				makeSpace(lvl, lv_game, { toado, i + 2 }, 0);
+		}
+	
+
+		if (Mau == 0) {
+			clrscr();
+			Lost = 1;
+
+			TerminateThread((void*)pthread.native_handle(), 0);
+
+			return;
+		}
+
+		Sleep(250);
+	}
+	goto Begin;;
+}
+
+
+int MovingCases(char lvl[][25], int lv_game, TOADO vitri, int move_x, int move_y, bool &Not_moving, bool &flag, int &Hammer) {
+	if (!Dung_tuong(lvl, vitri, move_x, move_y)) {
+		Not_moving = 0;
+
+		if (Ket_thuc(lvl, vitri, move_x, move_y)) {
+			clrscr();
+
+			return 1;
+		}
+
+		if (Collect_Hammer(lvl, vitri, move_x, move_y)) {
+			NumberofHammer(++Hammer);
+		}
+
+		if (Collect_time(lvl, vitri, move_x, move_y))
+			Add_s += 5;  // thoi gian tang 5 giay
+
+		if (Is_Tele(lvl, lv_game, vitri, flag, move_x, move_y)) return 2;
+
+
+		if (flag) { //neu dich chuyen roi thi tra lai cong dich chuyen
+			flag = 0;
+			makeSpace(lvl, lv_game, vitri, 1);
+		}
+		else
+			makeSpace(lvl, lv_game, vitri, 0);
+
+		update(lvl, vitri, move_x, move_y);
+	}
+	else Not_moving = 1;
+	return 0;
+}
+
+void GetMoving(char move, char &move_x, char &move_y) {
+	if (move == 'u') {
+		move_x = topx;
+		move_y = topy;
+	}
+
+	if (move == 'd') {
+		move_x = botx;
+		move_y = boty;
+	}
+
+	if (move == 'r') {
+		move_x = rightx;
+		move_y = righty;
+	}
+
+	if (move == 'l') {
+		move_x = leftx;
+		move_y = lefty;
+	}
+
+}
+
 void move() {
-
-	int x, y, lv_game = 0, Bua = 0;
+	//Khởi Tạo
+	TOADO vitri;
+	int Case;
 	bool flag = 0;
-	char lvl[25][25];
+	char last_move;
+	bool Not_moving = NULL;
+	char move_x, move_y;
+	int lv_game = 0;
+	int Hammer = 0;
+	//-------------
 
-	if (!Start_game())
+	if (!Start_game()) {
+		
 		return;
-
+	}
 begin:
+
+	Get_data(last_move, Not_moving, Mau, Add_s, Lost, m, s, Hammer);
+
 	if (lv_game == 3) {
+		Stop(pthread);
 		Chien_thang();
 	}
 
 	This_Level(++lv_game);
-	copy_lv(lv_game, lvl);
-	In_level(lv_game,lvl);
+	
+	copy_lv(lvl,lv_game);
+	In_level(lvl, lv_game);
 
-	while (1) {
-		char move = Lay_phim();
+	if (lv_game == 2 || lv_game == 3) NumberofHammer(Hammer);
+
+	if (lv_game == 2) 
+		pthread = thread(Quai_Di_Chuyen,lvl, lv_game, lv2_1_toadox, lv2_1_start, lv2_1_end); //luồng quái di chuyển
 		
+	
+	
+	if (lv_game == 3) {
+		pthread = thread(In_Time); //luồng đồng hồ đếm ngược
+	}
+	
+	
+	
+	while (1) {
+		if (!Lost) {
+			char move;
 
-		switch (move) {
+			if (_kbhit())
+				move = Lay_phim();
+			else
+				continue;
+			if (Lost) continue;
 
-		case 'c':
-			control();
-			while (1) {
-				int select = Bang_control();
-				if (!select)
-					continue;
 
-				if (select == 3) {
-					Thank();
-					return;
+			vitri = Lay_toa_do(lvl, lv_game);
+			switch (move) {
+
+
+
+			case 'c':
+				SuspendThread((void*)pthread.native_handle());
+
+				control();
+
+				while (1) {
+					int select = Bang_control();
+					if (!select)
+						continue;
+
+					if (select == 3) {
+						Thank();
+						
+						Stop(pthread);
+						return;
+					}
+
+					if (select == 2) {
+						clrscr();
+						lv_game--;
+						TerminateThread((void*)pthread.native_handle(), 0);
+						pthread.join();
+
+						goto begin;;
+					}
+
+					if (select == 1) {
+						clrscr();
+						In_level(lvl, lv_game);
+					}
+
+					break;
 				}
+				ResumeThread((void*)pthread.native_handle());
 
-				if (select == 2) {
-					system("CLS");
-					lv_game--;
-					goto begin;;
-				}
+				break;
 
-				if (select == 1) {
-					system("CLS");
-					In_level(lv_game, lvl);
+			case 's':
+				if (Hammer && last_move != NULL) {
+					GetMoving(last_move, move_x, move_y);
+					if (PoundingWalls(lvl, lv_game, vitri, move_x, move_y)) {
+						NumberofHammer(--Hammer);
+					}
 				}
 				break;
-			}
 
-			break;
-		case 'u':
-			x = Lay_toa_do(lvl, lv_game, y);
+			case 'u': 
+			case 'd': 
+			case 'l':
+			case 'r':
+				GetMoving(move, move_x, move_y);
 
-			if (!Dung_tuong(x - 1, y, lv_game, lvl)) {
-				
-				if (Ket_thuc(x - 1, y, lv_game,lvl)) {
-					system("CLS");
-
-					goto begin;;
-				}
-
-				if (Is_Tele(lvl, lv_game, x, y, flag, topx, topy)) break;
-
-
-				if (flag) { //neu dich chuyen roi thi tra lai cong dich chuyen
-					flag = 0;
-					makeSpace(lvl, lv_game, x, y, 1);
+				Case = MovingCases(lvl, lv_game, vitri, move_x, move_y, Not_moving, flag, Hammer);
+				if (Case == 1) {
+					if (lv_game == 2) {
+						Stop(pthread);
+					}
+					goto begin;
+					
 				}
 				else
-					makeSpace(lvl, lv_game, x, y, 0);
-				update(lvl, lv_game, x - 1, y, 0);
+					if (Case == 2) continue;
+				break;
+
+			
+			default:
+				break;
 			}
-			break;
-
-		case 'd':
-			x = Lay_toa_do(lvl, lv_game, y);
-
-			if (!Dung_tuong(x + 1, y, lv_game, lvl)) {
-
-				if (Ket_thuc(x + 1, y, lv_game, lvl)) {
-					system("CLS");
-
-					goto begin;;
+			if (lv_game == 2) Sleep(250);
+			else Sleep(150);
+			if (move == 'l' || move == 'u' || move == 'r' || move == 'd')
+				last_move = move;
+		}
+		else { 
+			// Nếu Thua
+			IsLost();
+			while (1) {
+				char move = Lay_phim();
+				if (move == 'e') {
+					pthread.join();
+					lv_game = 0;
+					goto begin;
 				}
-
-				if (Is_Tele(lvl, lv_game, x, y, flag, botx, boty)) break;
-
-				if (flag) { //neu dich chuyen roi thi tra lai cong dich chuyen
-					flag = 0;
-					makeSpace(lvl, lv_game, x, y, 1);
-				}
-				else
-					makeSpace(lvl, lv_game, x, y, 0);
-				update(lvl, lv_game, x + 1, y, 0);
-			}
-			break;
-		case 'l':
-			x = Lay_toa_do(lvl, lv_game, y);
-
-			if (!Dung_tuong(x, y - 1, lv_game, lvl )) {
-
-				if (Ket_thuc(x, y - 1, lv_game, lvl)) {
-					system("CLS");
-
-					goto begin;;
-				}
-
-				if (Is_Tele(lvl, lv_game, x, y, flag, leftx, lefty))
+				if (move == 'c')
 					break;
-
-
-				if (flag) { //neu dich chuyen roi thi tra lai cong dich chuyen
-					flag = 0;
-					makeSpace(lvl, lv_game, x, y, 1);
-				}
-				else
-					makeSpace(lvl, lv_game, x, y, 0); //di binh thuong
-				update(lvl, lv_game, x, y - 1, 0);
 			}
-			break;
-		case 'r':
-			x = Lay_toa_do(lvl, lv_game, y);
-
-			if (!Dung_tuong(x, y + 1, lv_game, lvl)) {
-
-				if (Ket_thuc(x, y + 1, lv_game,lvl )) {
-					system("CLS");
-
-					goto begin;;
-				}
-
-				if (Is_Tele(lvl, lv_game, x, y, flag, rightx, righty)) break;
-
-				if (flag) { //neu dich chuyen roi thi tra lai cong dich chuyen
-					flag = 0;
-					makeSpace(lvl, lv_game, x, y, 1);
-				}
-				else
-					makeSpace(lvl, lv_game, x, y, 0);
-				update(lvl, lv_game, x, y + 1, 0);
-			}
-			break;
-		default:
 			break;
 		}
 	}
+	
+	pthread.join();
 
 
 }
 
 
-static char Lay_phim() {
-
-	char key = 127;
-
-	key = _getch();
-
-	if (key == 0 || key == -32 ) {
-
-		key = _getch();
-
-		if (key == 72) {
-			key = 'u';
-		}
-		else if (key == 75) {
-			key = 'l';
-		}
-		else if (key == 77) {
-			key = 'r';
-		}
-		else if (key == 80) {
-			key = 'd';
-		}
-		
-	}
-	else 
-		if (key == 27) {
-			key = 'c';
-		}
-	return key;
-}
 
 
-static int Bang_control() {
-
-	char key = 127;
-
-	key = _getch();
-
-	if (key == 51)  return 3;
-	if (key == 50) return 2;
-	if (key == 49) return 1;
-	return 0;
-}
-
-
-static int Lay_toa_do(char lvl[][25], int lv_game, int &y) { // lay vi tri con tro thoi diem hien tai
-	int ToaDoX;
+static TOADO Lay_toa_do(char lvl[][25], int lv_game) { // lay vi tri con tro thoi diem hien tai
 
 	int n;
 	if (lv_game == 3) n = 25;
@@ -255,162 +382,84 @@ static int Lay_toa_do(char lvl[][25], int lv_game, int &y) { // lay vi tri con t
 	
 	for (int i = 0; i < n; ++i) {
 		for (int j = 0; j < n; ++j) {
-			if (lvl[i][j] == '@') {
-				ToaDoX = i;
-				y = j;
-				return ToaDoX;
+			if (lvl[i][j] == '@')
+				return { i,j };
 			}
-		}
 	}
 	
-	return 0;
+	
+	return { 0,0 };
 }
 
-static void update(char lvl[][25], int lv_game, int x, int y, bool flag) { // cap nhat vi tri hien tai
-	if (lv_game == 1) {
-		lvl[x][y] = me;
-		gotoXY(40 + y, 8 + x);
+static void update(char lvl[][25] , TOADO Position, int move_x, int move_y) { // cap nhat vi tri hien tai
+		lvl[Position.x + move_x][Position.y + move_y] = me;
+		gotoXY(40 + Position.y + move_y, 8 + Position.x + move_x);
+		set_me();
 		cout << me;
 
-	}
-
-	if (lv_game == 2) {
-		lvl[x][y] = me;
-
-		gotoXY(40 + y, 8 + x);
-		cout << me;
-	}
-
-	if (lv_game == 3) {
-		lvl[x][y] = me;
-
-		gotoXY(40 + y, 8 + x);
-		cout << me;
-	}
 }
 
-static void makeSpace(char lvl[][25], int lv_game, int x, int y, int flag) {
-	if (lv_game == 1) {
+static void makeSpace(char lvl[][25],int lv_game, TOADO Position, int flag) {
 		if (flag == 0) {
-			lvl[x][y] = space;
-			gotoXY(40 + y, 8 + x);
+			lvl[Position.x][Position.y] = space;
+			gotoXY(40 + Position.y, 8 + Position.x);
 			cout << ' ';
 		}
 		else {
-			lvl[x][y] = 'x';
-			gotoXY(40 + y, 8 + x);
+			lvl[Position.x][Position.y] = 'x';
+			gotoXY(40 + Position.y, 8 + Position.x);
+			get_color(Position.x, Position.y, lv_game);
 			cout << 'x';
 		}
 
-	}
-	if (lv_game == 2) {
-		if (flag == 0) {
-			lvl[x][y] = space;
-			gotoXY(40 + y, 8 + x);
-			cout << ' ';
-		}
-		else {
-			lvl[x][y] = 'x';
-			gotoXY(40 + y, 8 + x);
-			cout << 'x';
-		}
-	}
-
-
-	if (lv_game == 3) {
-		if (flag == 0) {
-			lvl[x][y] = space;
-			gotoXY(40 + y, 8 + x);
-			cout << ' ';
-		}
-		else {
-			lvl[x][y] = 'x';
-			gotoXY(40 + y, 8 + x);
-			cout << 'x';
-		}
-	}
+	
 }
 
-static bool Dung_tuong(int x, int y, int lv_game, char lvl[][25]) { //Xu li neu cham tuong
-	if (lv_game == 1) {
-		if (lvl[x][y] == '#' || lvl[x][y] == '|' || lvl[x][y] == '=') {
-			return true;
-		}
-		else {
-			return false;
-		}
+static bool Dung_tuong(char lvl[][25], TOADO vitri, int move_x, int move_y) { //Xu li neu cham tuong
+		
+	if (lvl[vitri.x + move_x][vitri.y + move_y] == '#' || lvl[vitri.x + move_x][vitri.y + move_y] == '|' ||lvl[vitri.x + move_x][vitri.y + move_y] == '=') {
+		return true;
 	}
-	if (lv_game == 2) {
-		if (lvl[x][y] == '#' || lvl[x][y] == '|' || lvl[x][y] == '=') {
-			return true;
-		}
-		else {
-			return false;
-		}
+	else {
+		return false;
 	}
 
-	if (lv_game == 3) {
-		if (lvl[x][y] == '#' || lvl[x][y] == '|' || lvl[x][y] == '=') {
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
-
-	return true;
 }
 
-static bool Ket_thuc(int x, int y, int lv_game, char lvl[][25]) {
-	if (lv_game == 1) {
-		if (lvl[x][y] == 'O') {
+static bool Ket_thuc(char lvl[][25], TOADO vitri, int move_x, int move_y) {
+	if (lvl[vitri.x + move_x][vitri.y + move_y] == 'O') {
 			return true;
-		}
-		else {
-			return false;
-		}
 	}
-	if (lv_game == 2) {
-		if (lvl[x][y] == 'O') {
-			return true;
-		}
-		else {
-			return false;
-		}
+	else {
+		return false;
 	}
-
-	if (lv_game == 3) {
-		if (lvl[x][y] == 'O') {
-			return true;
-		}
-		else {
-			return false;
-		}
-	}
-	return true;
+	
 }
 
 // dich chuyen
-bool Is_Tele(char lvl[][25], int lv_game, int x, int y, bool &flag, int buoc_di_x, int buoc_di_y) {
+bool Is_Tele(char lvl[][25], int lv_game, TOADO vitri, bool &flag, int buoc_di_x, int buoc_di_y) {
+	TOADO vitri_dichuyen = { vitri.x + buoc_di_x, vitri.y + buoc_di_y };
+
 	if (lv_game == 1) {
-		if (Tele1(lvl, lv_game, x + buoc_di_x, y + buoc_di_y)) {
-			makeSpace(lvl, lv_game, x, y, 0);
+		
+		if (Tele1(lvl, lv_game, vitri_dichuyen)) {
+			makeSpace(lvl, lv_game, vitri, 0);
 			flag = 1;//luu vet la da dich chuyen r
 			return 1;
 		}
 	}
 
 	if (lv_game == 2) {
-		if (Tele2(lvl, lv_game, x + buoc_di_x, y + buoc_di_y)) {
-			makeSpace(lvl, lv_game, x, y, 0);
+		if (Tele2(lvl, lv_game, vitri_dichuyen)) {
+			makeSpace(lvl, lv_game, vitri, 0);
 			flag = 1;//luu vet la da dich chuyen r
 			return 1;
 		}
 	}
 
 	if (lv_game == 3) {
-		if (Tele3(lvl, lv_game, x + buoc_di_x, y + buoc_di_y)) {
-			makeSpace(lvl, lv_game, x, y, 0);
+		if (Tele3(lvl, lv_game, vitri_dichuyen)) {
+			makeSpace(lvl, lv_game, vitri, 0);
 			flag = 1;//luu vet la da dich chuyen r
 			return 1;
 		}
@@ -418,61 +467,61 @@ bool Is_Tele(char lvl[][25], int lv_game, int x, int y, bool &flag, int buoc_di_
 	return 0;//khong dich chuyen duoc
 }
 
-bool Tele1(char lvl[][25], int lv_game, int x, int y) {
-	int vt_x[9] = { 2, 10, 18, 18, 18, 18, 7, 4, 1 };
-	int vt_y[9] = { 2, 2, 7, 3, 9, 5, 4, 8, 17 }; //mang cac vi tri x dich chuyen
+bool Tele1(char lvl[][25],int lv_game, TOADO vitri_dichuyen) {
+	int vt_x_lv1[9] = { 2, 10, 18, 18, 18, 18, 7, 4, 1 };
+	int vt_y_lv1[9] = { 2, 2, 7, 3, 9, 5, 4, 8, 17 }; //mang cac vi tri x dich chuyen
+
 	for (int i = 1; i <= 8; i++)
-		if (x == vt_x[i] && y == vt_y[i]) {
-			//char c = lvl1[x][y];
+		if (vitri_dichuyen.x == vt_x_lv1[i] && vitri_dichuyen.y == vt_y_lv1[i]) {
 
-			makeSpace(lvl, lv_game, x, y, 1);
+			makeSpace(lvl, lv_game , vitri_dichuyen, 1);
 
-			if (i <= 4) update(lvl, lv_game, vt_x[i + 4], vt_y[i + 4], 1);
+			if (i <= 4) update(lvl, { vt_x_lv1[i + 4], vt_y_lv1[i + 4] }, 0, 0);
 			else
-				update(lvl, lv_game, vt_x[i - 4], vt_y[i - 4], 1);
-			//lvl1[x][y] = c;
+				update(lvl, { vt_x_lv1[i - 4], vt_y_lv1[i - 4] }, 0, 0);
+			
 			return 1;
 		}
 	return 0;
 }
 
-bool Tele2(char lvl[][25], int lv_game, int x, int y) {
+bool Tele2(char lvl[][25], int lv_game, TOADO NewPosition) {
+
 	int vt_x_lv2[13] = { 0, 17, 15 ,10, 7, 5, 1, 12, 16,17, 3, 8, 10 };
 	int vt_y_lv2[13] = { 0, 1, 9, 12, 5, 16, 14, 7, 11, 6, 8, 11, 14 };
 	for (int i = 1; i <= 12; i++)
-		if (x == vt_x_lv2[i] && y == vt_y_lv2[i]) {
-			//char c = lvl1[x][y];
+		if (NewPosition.x == vt_x_lv2[i] && NewPosition.y == vt_y_lv2[i]) {
 
-			makeSpace(lvl, lv_game, x, y, 1);
+			makeSpace(lvl, lv_game, NewPosition, 1);
 
-			if (i <= 6) update(lvl, lv_game, vt_x_lv2[i + 6], vt_y_lv2[i + 6], 1);
+			if (i <= 6) update(lvl, { vt_x_lv2[i + 6], vt_y_lv2[i + 6] }, 0, 0);
 			else
-				update(lvl, lv_game, vt_x_lv2[i - 6], vt_y_lv2[i - 6], 1);
-			//lvl1[x][y] = c;
+				update(lvl, { vt_x_lv2[i - 6], vt_y_lv2[i - 6] }, 0, 0);
+			
 			return 1;
 		}
 	return 0;
 }
 //
 
-bool Tele3(char lvl[][25], int lv_game, int x, int y) {
+bool Tele3(char lvl[][25], int lv_game, TOADO NewPosition) {
 	int vt_x_lv3[17] = { 0, 1,20, 19, 19, 10, 23,11,13, 21, 15, 23, 4, 5, 15, 13, 3 };
 	int vt_y_lv3[17] = { 0, 1,22, 16, 14, 12, 9, 16, 3, 12, 20, 17, 14, 20, 6, 18, 20 };
 
 	for (int i = 1; i <= 16; i++)
-		if (x == vt_x_lv3[i] && y == vt_y_lv3[i]) {
-			makeSpace(lvl, lv_game, x, y, 1);
+		if (NewPosition.x == vt_x_lv3[i] && NewPosition.y == vt_y_lv3[i]) {
+			makeSpace(lvl, lv_game, NewPosition, 1);
 
-			if (i <= 8) update(lvl, lv_game, vt_x_lv3[i + 8], vt_y_lv3[i + 8], 1);
+			if (i <= 8) update(lvl, { vt_x_lv3[i + 8], vt_y_lv3[i + 8] }, 0, 0);
 			else
-				update(lvl, lv_game, vt_x_lv3[i - 8], vt_y_lv3[i - 8], 1);
+				update(lvl, { vt_x_lv3[i - 8], vt_y_lv3[i - 8] }, 0, 0);
 			return 1;
 		}
 	return 0;
 }
 
 
-static void copy_lv(int lv_game, char lvl[][25]) {
+static void copy_lv(char lvl[][25], int lv_game) {
 	if (lv_game == 1) {
 		for (int i = 0; i != 20; i++)
 			for (int j = 0; j != 20; j++)
@@ -490,4 +539,21 @@ static void copy_lv(int lv_game, char lvl[][25]) {
 			for (int j = 0; j != 25; j++)
 				lvl[i][j] = lvl3[i][j];
 	}
+}
+
+//Nhặt được búa
+static bool Collect_Hammer(char lvl[][25], TOADO position, int Move_x, int Move_y) {
+	if (lvl[position.x + Move_x][position.y + Move_y] == 'T') {
+		return 1;
+	}
+	return 0;
+}
+
+static bool PoundingWalls(char lvl[][25],int lv_game, TOADO position, int move_x, int move_y) {
+	TOADO NewPosition = { position.x + move_x,position.y + move_y };
+	if (lvl[NewPosition.x][NewPosition.y] == '#') {
+		makeSpace(lvl, lv_game, NewPosition, 0);
+		return 1;
+	}
+	return 0;
 }

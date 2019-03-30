@@ -20,25 +20,27 @@
 #define ColorCode_Yellow		14
 #define ColorCode_White			15
 
-#define default_ColorCode		7
+#define default_ColorCode		16
 
 
-#define key_Up		1072
-#define key_Down	1080
-#define key_Left	1075
-#define key_Right	1077
-#define key_none	-1
+
 
 //--------------------------------------------------------
 
 #include <windows.h>
 
-//--------------------------------------------------------
 
-int inputKey();
 
 //-------------------------Screen-------------------------
 void clrscr();
+
+//------------------------Console------------------------
+void BlockZoomConsole();
+
+void Nocursortype();
+
+void BackGroundColor(WORD color);
+//-----------------------------------------------------
 
 //screen: goto [x,y]
 void gotoXY(int column, int line);
@@ -51,6 +53,7 @@ int whereY();
 
 void TextColor(int color);
 //end----------------------Screen----------------------end
+
 
 
 #endif
