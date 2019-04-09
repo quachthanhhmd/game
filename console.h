@@ -45,11 +45,7 @@ void BackGroundColor(WORD color);
 //screen: goto [x,y]
 void gotoXY(int column, int line);
 
-//screen: get [x]
-int whereX();
 
-//screen: get [y]
-int whereY();
 
 void TextColor(int color);
 //end----------------------Screen----------------------end

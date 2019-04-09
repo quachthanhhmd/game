@@ -1,9 +1,9 @@
 ﻿#include <stdio.h>
-#include<iostream>
+#include <iostream>
 #include <stdlib.h>
-#include <windows.h>
-#include <dos.h>
-#include <direct.h>
+
+
+
 
 #include "console.h"
 #include "Setting.h"
@@ -77,7 +77,7 @@ void Get_data(char &last_move, bool &Not_moving, int &Blood, int &Add_s, bool &L
 	Add_s = 0;//Thời gian cộng thêm mặc định là 0
 	Lost = 0; // Mặc định là vẫn chưa thua
 	m = 1; //số phút để hoàn thành trò chơi ở lv3
-	s = 0; //số giây để hoàn thành trò chơi ở lv3
+	s = 30; //số giây để hoàn thành trò chơi ở lv3
 	Hammer = 0;//Số búa ban đầu bằng 0
 }
 

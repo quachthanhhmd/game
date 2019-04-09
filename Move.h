@@ -7,4 +7,4 @@ typedef struct {
 }TOADO;
 
 
-void move();
+void Moving();

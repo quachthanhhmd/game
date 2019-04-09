@@ -1,7 +1,7 @@
 
 #include "KeyBoard.h"
 
-char Lay_phim() {
+char GetKey() {
 
 	char key = 127;
 
@@ -35,14 +35,17 @@ char Lay_phim() {
 				key = 'e';
 			else
 				if (key == 32)
-					 key = 's';
+					key = 's';
 				else
-					key = 'k';
+					if (key == 77 || key == 109)
+						key = 'm';
+					else
+						key = 'k';
 	return key;
 }
 
 
-int Bang_control() {
+int GetKeyControl() {
 
 	char key = 127;
 

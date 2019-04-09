@@ -1,7 +1,7 @@
-﻿#include <conio.h>
+﻿#pragma comment (lib, "winmm.lib")
+#include <conio.h>
 #include <iostream>
-
-#include <iomanip>
+#include <mutex>
 
 #include "khoitao.h"
 #include "Setting.h"
@@ -14,15 +14,15 @@
 using namespace std;
 
 
-static bool Ket_thuc(char[][25], TOADO, int , int );
+static bool EndGame(char[][25], TOADO, int , int );
 static void makeSpace(char lvl[][25], int, TOADO, int);
 static void copy_lv(char[][25], int);
 static TOADO Lay_toa_do(char[][25], int);
 static bool Dung_tuong(char[][25], TOADO, int, int );
 static void update(char[][25], TOADO, int ,int );
-static bool Is_Tele(char[][25], int , TOADO, bool&, int, int);
+static bool IsTele(char[][25], int , TOADO, bool&, int, int);
 
-static bool Collect_Hammer(char[][25], TOADO, int, int);
+static bool CollectHammer(char[][25], TOADO, int, int);
 static bool PoundingWalls(char[][25], int , TOADO , int , int );
 
 bool Tele1(char[][25], int, TOADO);
@@ -36,25 +36,28 @@ thread pthread;
 //Khai báo mảng mê cung 
 char lvl[25][25];
 
+mutex mtx;
+
 //Đếm Ngược thời gian và in ra màn hình
-void In_Time() {
+void Countdown() {
 	
 	bool flag = 1; //đánh dấu là đã cập nhật thời gian ở thời điểm đó rồi
 	int total = m * 60 + s;
 	while (total + Add_s)
 	{
-		
-		gotoXY(40, 7);
-		set_clock();
-		cout << setw(2) << m << ":"
-			<< setw(2) << s ;
+		if (m == 0 && s <= 10) Beep(587, 500);
+		mtx.lock();
+		PrintTime(m, s);
+		mtx.unlock();
 		Sleep(1000);
 
 		if (s + Add_s > 60) {
 			
-				m += 1;
-				s = (total + Add_s) % 60;
-				flag = 0;
+			m++;
+			s = 60 - (total + Add_s) % 60;
+			total += Add_s;
+			Add_s = 0;
+			flag = 0;
 			
 		}
 		if (m == 0 && s == 1)
@@ -83,7 +86,7 @@ void In_Time() {
 
 
 // Nhặt được thời gian
-bool Collect_time(char lvl[][25], TOADO vitri, int move_x, int move_y) {
+static bool Collect_time(char lvl[][25], TOADO vitri, int move_x, int move_y) {
 	if (lvl[vitri.x + move_x][vitri.y + move_y] == 's')
 		return 1;
 	return 0;
@@ -92,22 +95,26 @@ bool Collect_time(char lvl[][25], TOADO vitri, int move_x, int move_y) {
 
 
 //Quái di chuyên trên mê cung
-void Quai_Di_Chuyen(char lvl[][25], int lv_game, int toado, int batdau, int ketthuc) {
+void MonsterMoves(char lvl[][25], int lv_game, int toado, int batdau, int ketthuc) {
 	int flag = 0; // danh dau la vua moi va cham
-	Hp(Mau);
+	Hp(Blood);
 Begin:
 	for (int i = batdau + 1; i <= ketthuc; i++) {
 
 		if (lvl[toado][i] == '@' ||lvl[toado][i - 1] == '@') {
-			if (!flag) Hp(--Mau);
+			if (!flag) {
+				Hp(--Blood);
+				Beep(587, 500);
+			}
 			makeSpace(lvl, lv_game, { toado, i - 2 }, 0);
 			flag = 1;
 		}
 		else {
-			gotoXY(39 + i, 8 + toado);
 			set_monster();
+			gotoXY(coordx - 1 + i, coordy + toado);
+			
 			cout << '=' << Quai;
-
+		
 
 			flag = 0;
 			if (lvl[toado][i - 2] != '@')
@@ -115,7 +122,7 @@ Begin:
 	
 		}
 
-		if (Mau == 0) {
+		if (Blood == 0) {
 			clrscr();
 			Lost = 1;
 
@@ -123,22 +130,26 @@ Begin:
 
 			return;
 		}
-		Sleep(250);
+		Sleep(200);
 	}
 
 	flag = 0;
 	for (int i = ketthuc - 1; i >= batdau; i--) {
 
 		if (lvl[toado][i] == '@' || lvl[toado][i + 1] == '@') {
-			if (!flag) Hp(--Mau);
+			if (!flag) {
+				Hp(--Blood);
+				Beep(587, 500);
+			}
 			makeSpace(lvl, lv_game, {toado, i + 2}, 0);
 			flag = 1;
 		}
 		else {
-			gotoXY(40 + i, 8 + toado);
+			mtx.lock();
+			gotoXY(coordx + i, coordy + toado);
 			set_monster();
 			cout << Quai << '=';
-
+			mtx.unlock();
 			flag = 0;
 
 			if (lvl[toado][i + 2] != '@')
@@ -146,7 +157,7 @@ Begin:
 		}
 	
 
-		if (Mau == 0) {
+		if (Blood == 0) {
 			clrscr();
 			Lost = 1;
 
@@ -155,7 +166,7 @@ Begin:
 			return;
 		}
 
-		Sleep(250);
+		Sleep(200);
 	}
 	goto Begin;;
 }
@@ -165,20 +176,20 @@ int MovingCases(char lvl[][25], int lv_game, TOADO vitri, int move_x, int move_y
 	if (!Dung_tuong(lvl, vitri, move_x, move_y)) {
 		Not_moving = 0;
 
-		if (Ket_thuc(lvl, vitri, move_x, move_y)) {
+		if (EndGame(lvl, vitri, move_x, move_y)) {
 			clrscr();
 
 			return 1;
 		}
 
-		if (Collect_Hammer(lvl, vitri, move_x, move_y)) {
+		if (CollectHammer(lvl, vitri, move_x, move_y)) {
 			NumberofHammer(++Hammer);
 		}
 
 		if (Collect_time(lvl, vitri, move_x, move_y))
 			Add_s += 5;  // thoi gian tang 5 giay
 
-		if (Is_Tele(lvl, lv_game, vitri, flag, move_x, move_y)) return 2;
+		if (IsTele(lvl, lv_game, vitri, flag, move_x, move_y)) return 2;
 
 
 		if (flag) { //neu dich chuyen roi thi tra lai cong dich chuyen
@@ -217,7 +228,8 @@ void GetMoving(char move, char &move_x, char &move_y) {
 
 }
 
-void move() {
+
+void Moving() {
 	//Khởi Tạo
 	TOADO vitri;
 	int Case;
@@ -227,35 +239,52 @@ void move() {
 	char move_x, move_y;
 	int lv_game = 0;
 	int Hammer = 0;
+	int Music = 0;
 	//-------------
 
 	if (!Start_game()) {
-		
+		Thank();
 		return;
 	}
-begin:
+	//Music on
+	
 
-	Get_data(last_move, Not_moving, Mau, Add_s, Lost, m, s, Hammer);
+	
+
+begin:
+	if ((Music) % 2 == 0)
+		PlaySound("NEW-ZEALAND-STORY.wav", 0, SND_ASYNC | SND_FILENAME | SND_LOOP);
+
+	Get_data(last_move, Not_moving, Blood, Add_s, Lost, m, s, Hammer);
 
 	if (lv_game == 3) {
 		Stop(pthread);
-		Chien_thang();
+		if ((Music) % 2 == 0)
+			PlaySound("Victory.wav", 0, SND_ASYNC | SND_FILENAME | SND_LOOP);
+		if (Chien_thang()) {
+			lv_game = 0;
+			goto begin;
+		}
+		else {
+			clrscr();
+			return;
+		}
 	}
 
 	This_Level(++lv_game);
-	
+	Help(lv_game);
 	copy_lv(lvl,lv_game);
 	In_level(lvl, lv_game);
 
 	if (lv_game == 2 || lv_game == 3) NumberofHammer(Hammer);
 
 	if (lv_game == 2) 
-		pthread = thread(Quai_Di_Chuyen,lvl, lv_game, lv2_1_toadox, lv2_1_start, lv2_1_end); //luồng quái di chuyển
+		pthread = thread(MonsterMoves,lvl, lv_game, lv2_1_toadox, lv2_1_start, lv2_1_end); //luồng quái di chuyển
 		
 	
 	
 	if (lv_game == 3) {
-		pthread = thread(In_Time); //luồng đồng hồ đếm ngược
+		pthread = thread(Countdown); //luồng đồng hồ đếm ngược
 	}
 	
 	
@@ -265,7 +294,7 @@ begin:
 			char move;
 
 			if (_kbhit())
-				move = Lay_phim();
+				move = GetKey();
 			else
 				continue;
 			if (Lost) continue;
@@ -273,38 +302,48 @@ begin:
 
 			vitri = Lay_toa_do(lvl, lv_game);
 			switch (move) {
-
-
-
+			case 'm':
+				
+				if ((++Music) % 2) 
+					PlaySound(0, 0, 0);
+				else 
+					PlaySound("NEW-ZEALAND-STORY.wav", 0, SND_ASYNC | SND_FILENAME | SND_LOOP);
+				
+					
+				break;
 			case 'c':
 				SuspendThread((void*)pthread.native_handle());
 
-				control();
+				Control();
 
 				while (1) {
-					int select = Bang_control();
+					int select = GetKeyControl();
 					if (!select)
 						continue;
 
 					if (select == 3) {
 						Thank();
-						
-						Stop(pthread);
+						if (lv_game != 1)
+							Stop(pthread);
 						return;
 					}
 
 					if (select == 2) {
 						clrscr();
+						if (lv_game != 1)
+							Stop(pthread);
 						lv_game--;
-						TerminateThread((void*)pthread.native_handle(), 0);
-						pthread.join();
-
+						if ((Music) % 2 == 0)
+							PlaySound(0, 0, 0);
 						goto begin;;
 					}
 
 					if (select == 1) {
 						clrscr();
+						Help(lv_game);
 						In_level(lvl, lv_game);
+						if (lv_game != 1) NumberofHammer(Hammer);
+						if (lv_game == 2) Hp(Blood);
 					}
 
 					break;
@@ -344,22 +383,25 @@ begin:
 			default:
 				break;
 			}
-			if (lv_game == 2) Sleep(250);
-			else Sleep(150);
+			if (lv_game == 2) Sleep(220);
+			else
+				Sleep(150);
 			if (move == 'l' || move == 'u' || move == 'r' || move == 'd')
 				last_move = move;
 		}
 		else { 
 			// Nếu Thua
 			IsLost();
+			if ((Music) % 2 == 0)
+				PlaySound("Defeat.wav", 0, SND_ASYNC | SND_FILENAME | SND_LOOP);
 			while (1) {
-				char move = Lay_phim();
+				char move = GetKey();
 				if (move == 'e') {
 					pthread.join();
 					lv_game = 0;
 					goto begin;
 				}
-				if (move == 'c')
+				else
 					break;
 			}
 			break;
@@ -393,25 +435,28 @@ static TOADO Lay_toa_do(char lvl[][25], int lv_game) { // lay vi tri con tro tho
 
 static void update(char lvl[][25] , TOADO Position, int move_x, int move_y) { // cap nhat vi tri hien tai
 		lvl[Position.x + move_x][Position.y + move_y] = me;
-		gotoXY(40 + Position.y + move_y, 8 + Position.x + move_x);
+		mtx.lock();
+		gotoXY(30 + Position.y + move_y, 8 + Position.x + move_x);
 		set_me();
 		cout << me;
+		mtx.unlock();
 
 }
 
 static void makeSpace(char lvl[][25],int lv_game, TOADO Position, int flag) {
+	mtx.lock();
 		if (flag == 0) {
 			lvl[Position.x][Position.y] = space;
-			gotoXY(40 + Position.y, 8 + Position.x);
+			gotoXY(coordx + Position.y, coordy + Position.x);
 			cout << ' ';
 		}
 		else {
 			lvl[Position.x][Position.y] = 'x';
-			gotoXY(40 + Position.y, 8 + Position.x);
+			gotoXY(coordx + Position.y, coordy + Position.x);
 			get_color(Position.x, Position.y, lv_game);
 			cout << 'x';
 		}
-
+	mtx.unlock();
 	
 }
 
@@ -426,7 +471,7 @@ static bool Dung_tuong(char lvl[][25], TOADO vitri, int move_x, int move_y) { //
 
 }
 
-static bool Ket_thuc(char lvl[][25], TOADO vitri, int move_x, int move_y) {
+static bool EndGame(char lvl[][25], TOADO vitri, int move_x, int move_y) {
 	if (lvl[vitri.x + move_x][vitri.y + move_y] == 'O') {
 			return true;
 	}
@@ -437,7 +482,7 @@ static bool Ket_thuc(char lvl[][25], TOADO vitri, int move_x, int move_y) {
 }
 
 // dich chuyen
-bool Is_Tele(char lvl[][25], int lv_game, TOADO vitri, bool &flag, int buoc_di_x, int buoc_di_y) {
+static bool IsTele(char lvl[][25], int lv_game, TOADO vitri, bool &flag, int buoc_di_x, int buoc_di_y) {
 	TOADO vitri_dichuyen = { vitri.x + buoc_di_x, vitri.y + buoc_di_y };
 
 	if (lv_game == 1) {
@@ -542,7 +587,7 @@ static void copy_lv(char lvl[][25], int lv_game) {
 }
 
 //Nhặt được búa
-static bool Collect_Hammer(char lvl[][25], TOADO position, int Move_x, int Move_y) {
+static bool CollectHammer(char lvl[][25], TOADO position, int Move_x, int Move_y) {
 	if (lvl[position.x + Move_x][position.y + Move_y] == 'T') {
 		return 1;
 	}

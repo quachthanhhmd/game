@@ -11,5 +11,5 @@ void FixConsole() {
 void Run_maze() {
 
 	Welcome();
-	move();
+	Moving();
 }
